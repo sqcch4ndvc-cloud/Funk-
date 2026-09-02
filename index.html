@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Funk – dein Chat-Server</title>
+<style>
+  :root{
+    --ink:#14181d;
+    --panel:#1c2129;
+    --panel-2:#232a34;
+    --line:#2c3440;
+    --text:#e9edf2;
+    --text-dim:#8a95a3;
+    --accent:#e8a33d;
+    --accent-ink:#1c1305;
+    --bubble-me:#2c5a4f;
+    --bubble-me-line:#3a7a68;
+    --bubble-them:#232a34;
+    --danger:#d9695f;
+    --radius:16px;
+  }
+  html[data-theme="light"]{
+    --ink:#f6f4ef;
+    --panel:#ffffff;
+    --panel-2:#f0ede6;
+    --line:#e2ddd0;
+    --text:#20241f;
+    --text-dim:#6c7268;
+    --accent:#c97a2b;
+    --accent-ink:#fff7ec;
+    --bubble-me:#dcefe6;
+    --bubble-me-line:#b7dccb;
+    --bubble-them:#f0ede6;
+    --danger:#b3453c;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--ink); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overscroll-behavior:none;
+  }
+  #app{
+    display:flex; flex-direction:column;
+    height:100vh; height:100dvh;
+    max-width:560px; margin:0 auto;
+    position:relative; overflow:hidden;
+  }
+
+  /* ---------- Setup screen ---------- */
+  #setup{
+    flex:1; display:flex; flex-direction:column; justify-content:center;
+    padding:26px 24px; gap:16px; overflow-y:auto;
+  }
+  .brand{ display:flex; flex-direction:column; gap:4px; margin-bottom:6px; }
+  .brand .mark{
+    width:46px; height:46px; border-radius:13px;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:700; margin-bottom:10px;
+  }
+  .brand h1{ margin:0; font-size:26px; letter-spacing:-0.02em; }
+  .brand p{ margin:0; color:var(--text-dim); font-size:14px; line-height:1.5; }
+
+  .field{ display:flex; flex-direction:column; gap:7px; }
+  .field label{ font-size:12.5px; color:var(--text-dim); font-weight:600; }
+  .field input{
+    background:var(--panel); border:1px solid var(--line); color:var(--text);
+    padding:14px 15px; border-radius:12px; font-size:16px; outline:none;
+    font-family:inherit;
+  }
+  .field input:focus{ border-color:var(--accent); }
+  .row{ display:flex; gap:10px; }
+  .row .field{ flex:1; }
+  .ghost-btn{
+    background:transparent; border:1px solid var(--line); color:var(--text);
+    padding:14px; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer;
+    white-space:nowrap;
+  }
+  .primary-btn{
+    background:var(--accent); color:var(--accent-ink); border:none;
+    padding:15px; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer;
+    margin-top:4px;
+  }
+  .primary-btn:disabled{ opacity:0.5; }
+  .hint{ font-size:12px; color:var(--text-dim); text-align:center; line-height:1.6; }
+  .status-line{ font-size:13px; text-align:center; min-height:18px; color:var(--accent); }
+
+  /* ---------- Chat screen ---------- */
+  #chat{ flex:1; display:none; flex-direction:column; min-height:0; }
+  header{
+    display:flex; align-items:center; gap:10px;
+    padding:14px 16px; border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  header .room-info{ flex:1; min-width:0; }
+  header .room-info .r1{ font-size:15px; font-weight:700; }
+  header .room-info .r2{ font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--danger); flex:none; }
+  .dot.on{ background:#4caf7d; }
+  .icon-btn{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    width:38px; height:38px; border-radius:10px; font-size:16px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+
+  #messages{
+    flex:1; overflow-y:auto; padding:16px 14px 8px;
+    display:flex; flex-direction:column; gap:10px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .msg{ max-width:78%; display:flex; flex-direction:column; gap:3px; }
+  .msg.me{ align-self:flex-end; align-items:flex-end; }
+  .msg.them{ align-self:flex-start; align-items:flex-start; }
+  .msg .name{ font-size:11.5px; font-weight:700; padding:0 4px; }
+  .bubble{
+    padding:10px 13px; border-radius:var(--radius); font-size:15px; line-height:1.4;
+    word-wrap:break-word; white-space:pre-wrap;
+  }
+  .msg.me .bubble{ background:var(--bubble-me); border:1px solid var(--bubble-me-line); border-bottom-right-radius:4px; }
+  .msg.them .bubble{ background:var(--bubble-them); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .meta{ font-size:10.5px; color:var(--text-dim); padding:0 4px; }
+  .system-msg{
+    align-self:center; font-size:12px; color:var(--text-dim);
+    background:var(--panel-2); padding:5px 12px; border-radius:20px; margin:4px 0;
+    text-align:center;
+  }
+
+  #composer{
+    display:flex; align-items:flex-end; gap:8px;
+    padding:10px 12px; border-top:1px solid var(--line); background:var(--panel);
+  }
+  #emojiRow{
+    display:flex; gap:6px; overflow-x:auto; padding:0 12px 8px;
+    background:var(--panel);
+  }
+  #emojiRow button{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
+    font-size:19px; padding:5px 9px; flex:none; cursor:pointer;
+  }
+  #textInput{
+    flex:1; resize:none; max-height:110px; min-height:42px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:20px; padding:11px 15px; font-size:15.5px; font-family:inherit; outline:none;
+  }
+  #textInput:focus{ border-color:var(--accent); }
+  #sendBtn{
+    width:42px; height:42px; border-radius:50%; border:none; flex:none;
+    background:var(--accent); color:var(--accent-ink); font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #sendBtn:disabled{ opacity:0.4; }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SETUP -->
+  <div id="setup">
+    <div class="brand">
+      <div class="mark">F</div>
+      <h1>Funk</h1>
+      <p>Chat über deinen eigenen Server. Nur wer eure Server-Adresse und den Raumcode kennt, kann mitlesen.</p>
+    </div>
+
+    <div class="field">
+      <label>Dein Name</label>
+      <input id="nameInput" type="text" placeholder="z. B. Alex" maxlength="20" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>Server-Adresse</label>
+      <input id="serverInput" type="text" placeholder="z. B. funk-chat-server.onrender.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Raumcode (mit anderen teilen)</label>
+        <input id="roomInput" type="text" placeholder="z. B. baum-42" maxlength="30" autocomplete="off">
+      </div>
+      <button class="ghost-btn" id="genRoomBtn" style="align-self:flex-end;">Neu</button>
+    </div>
+
+    <button class="primary-btn" id="joinBtn">Chat betreten</button>
+    <div class="status-line" id="statusLine"></div>
+    <div class="hint">War der Server länger inaktiv, kann die erste Verbindung bis zu einer Minute dauern (kostenloses Hosting) – danach läuft es normal weiter.</div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="chat">
+    <header>
+      <div class="room-info">
+        <div class="r1" id="roomTitle">Raum</div>
+        <div class="r2"><span class="dot" id="connDot"></span><span id="connText">Verbinde …</span></div>
+      </div>
+      <button class="icon-btn" id="shareBtn" title="Zugangsdaten kopieren">⇪</button>
+      <button class="icon-btn" id="themeBtn" title="Design wechseln">◐</button>
+      <button class="icon-btn" id="leaveBtn" title="Verlassen">✕</button>
+    </header>
+
+    <div id="messages"></div>
+
+    <div id="emojiRow"></div>
+    <div id="composer">
+      <textarea id="textInput" placeholder="Nachricht schreiben …" rows="1"></textarea>
+      <button id="sendBtn">➤</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Persisted prefs ----------
+  var savedName = localStorage.getItem('funk_name') || '';
+  var savedServer = localStorage.getItem('funk_server') || '';
+  var savedRoom = localStorage.getItem('funk_room') || '';
+  var savedTheme = localStorage.getItem('funk_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  var nameInput = document.getElementById('nameInput');
+  var serverInput = document.getElementById('serverInput');
+  var roomInput = document.getElementById('roomInput');
+  nameInput.value = savedName;
+  serverInput.value = savedServer;
+  roomInput.value = savedRoom;
+
+  document.getElementById('genRoomBtn').addEventListener('click', function(){
+    var words = ['baum','fluss','stern','wolke','feuer','stein','mond','wind','see','berg'];
+    var w = words[Math.floor(Math.random()*words.length)];
+    var n = Math.floor(10 + Math.random()*89);
+    roomInput.value = w + '-' + n;
+  });
+
+  // ---------- State ----------
+  var socket = null;
+  var myName = '';
+  var myServer = '';
+  var myRoom = '';
+  var myId = localStorage.getItem('funk_id') || Math.random().toString(36).slice(2,10);
+  localStorage.setItem('funk_id', myId);
+  var manualClose = false;
+  var reconnectTimer = null;
+  var colorCache = {};
+  var palette = ['#e8a33d','#5aa9e6','#e67e9c','#7fbf7f','#c78ce6','#e6a45a','#5ecbc8'];
+
+  function colorFor(name){
+    if(colorCache[name]) return colorCache[name];
+    var h=0; for(var i=0;i<name.length;i++) h = name.charCodeAt(i) + ((h<<5)-h);
+    var c = palette[Math.abs(h) % palette.length];
+    colorCache[name] = c;
+    return c;
+  }
+
+  // ---------- Setup -> Chat ----------
+  var statusLine = document.getElementById('statusLine');
+  var joinBtn = document.getElementById('joinBtn');
+
+  joinBtn.addEventListener('click', function(){
+    var n = nameInput.value.trim();
+    var s = serverInput.value.trim();
+    var r = roomInput.value.trim().toLowerCase().replace(/\s+/g,'-');
+    if(!n){ statusLine.textContent = 'Bitte gib deinen Namen ein.'; return; }
+    if(!s){ statusLine.textContent = 'Bitte gib die Server-Adresse ein.'; return; }
+    if(!r){ statusLine.textContent = 'Bitte gib einen Raumcode ein.'; return; }
+    statusLine.textContent = '';
+    myName = n; myServer = s; myRoom = r;
+    localStorage.setItem('funk_name', n);
+    localStorage.setItem('funk_server', s);
+    localStorage.setItem('funk_room', r);
+    manualClose = false;
+    enterChat();
+  });
+
+  function enterChat(){
+    document.getElementById('setup').style.display = 'none';
+    var chat = document.getElementById('chat');
+    chat.style.display = 'flex';
+    document.getElementById('roomTitle').textContent = 'Raum: ' + myRoom;
+    connect();
+  }
+
+  document.getElementById('leaveBtn').addEventListener('click', function(){
+    manualClose = true;
+    clearTimeout(reconnectTimer);
+    if(socket){ try{ socket.close(); }catch(e){} }
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('chat').style.display = 'none';
+    document.getElementById('setup').style.display = 'flex';
+  });
+
+  document.getElementById('themeBtn').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('funk_theme', next);
+  });
+
+  document.getElementById('shareBtn').addEventListener('click', function(){
+    var text = 'Tritt meinem Funk-Chat bei!\nServer: ' + myServer + '\nRaumcode: ' + myRoom;
+    if(navigator.share){
+      navigator.share({text:text}).catch(function(){});
+    } else if(navigator.clipboard){
+      navigator.clipboard.writeText(text).then(function(){
+        addSystemMsg('Zugangsdaten kopiert.');
+      });
+    } else {
+      window.prompt('Zum Kopieren:', text);
+    }
+  });
+
+  // ---------- WebSocket connection to your own server ----------
+  var connDot = document.getElementById('connDot');
+  var connText = document.getElementById('connText');
+
+  function buildWsUrl(){
+    var host = myServer
+      .replace(/^wss?:\/\//i, '')
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '');
+    return 'wss://' + host + '/?room=' + encodeURIComponent(myRoom) +
+           '&name=' + encodeURIComponent(myName) + '&id=' + encodeURIComponent(myId);
+  }
+
+  function connect(){
+    clearTimeout(reconnectTimer);
+    connText.textContent = 'Verbinde …';
+    connDot.classList.remove('on');
+
+    var url;
+    try{ url = buildWsUrl(); } catch(e){ connText.textContent = 'Ungültige Server-Adresse'; return; }
+
+    socket = new WebSocket(url);
+
+    socket.onopen = function(){
+      connDot.classList.add('on');
+      connText.textContent = 'Verbunden';
+    };
+
+    socket.onmessage = function(ev){
+      var data;
+      try{ data = JSON.parse(ev.data); }catch(e){ return; }
+      handleIncoming(data);
+    };
+
+    socket.onclose = function(){
+      connDot.classList.remove('on');
+      if(manualClose) return;
+      connText.textContent = 'Verbinde erneut …';
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    socket.onerror = function(){
+      connText.textContent = 'Verbindungsfehler';
+    };
+  }
+
+  function handleIncoming(data){
+    if(data.type === 'history'){
+      var msgs = Array.isArray(data.messages) ? data.messages : [];
+      if(msgs.length){
+        addSystemMsg('Bisheriger Verlauf');
+        msgs.forEach(function(m){ addMessage(m.name, m.text, m.time, m.id === myId); });
+        addSystemMsg('Neue Nachrichten');
+      }
+      return;
+    }
+    if(data.type === 'join'){ addSystemMsg(data.name + ' ist beigetreten'); return; }
+    if(data.type === 'leave'){ addSystemMsg(data.name + ' hat den Chat verlassen'); return; }
+    if(data.type === 'msg'){ addMessage(data.name, data.text, data.time, false); return; }
+  }
+
+  // ---------- UI: messages ----------
+  var messagesEl = document.getElementById('messages');
+
+  function fmtTime(ts){
+    var d = new Date(ts);
+    var h = d.getHours().toString().padStart(2,'0');
+    var m = d.getMinutes().toString().padStart(2,'0');
+    return h+':'+m;
+  }
+
+  function addMessage(name, text, time, isMe){
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ' + (isMe ? 'me' : 'them');
+
+    if(!isMe){
+      var nameEl = document.createElement('div');
+      nameEl.className = 'name';
+      nameEl.style.color = colorFor(name);
+      nameEl.textContent = name;
+      wrap.appendChild(nameEl);
+    }
+
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = fmtTime(time);
+    wrap.appendChild(meta);
+
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function addSystemMsg(text){
+    var el = document.createElement('div');
+    el.className = 'system-msg';
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    scrollToBottom();
+  }
+
+  function scrollToBottom(){
+    requestAnimationFrame(function(){
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+
+  // ---------- Composer ----------
+  var textInput = document.getElementById('textInput');
+  var sendBtn = document.getElementById('sendBtn');
+
+  function send(){
+    var text = textInput.value.trim();
+    if(!text) return;
+    if(!socket || socket.readyState !== WebSocket.OPEN){
+      addSystemMsg('Nicht verbunden – bitte kurz warten.');
+      return;
+    }
+    addMessage(myName, text, Date.now(), true);
+    socket.send(JSON.stringify({type:'msg', text:text}));
+    textInput.value = '';
+    textInput.style.height = 'auto';
+  }
+
+  sendBtn.addEventListener('click', send);
+  textInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  });
+  textInput.addEventListener('input', function(){
+    textInput.style.height = 'auto';
+    textInput.style.height = Math.min(textInput.scrollHeight, 110) + 'px';
+  });
+
+  // ---------- Emoji row ----------
+  var emojis = ['😀','😂','😍','👍','🙏','🎉','😢','🔥','❤️','😉','🤔','👋'];
+  var emojiRow = document.getElementById('emojiRow');
+  emojis.forEach(function(e){
+    var b = document.createElement('button');
+    b.textContent = e;
+    b.addEventListener('click', function(){
+      textInput.value += e;
+      textInput.focus();
+    });
+    emojiRow.appendChild(b);
+  });
+
+})();
+</script>
+</body>
+</html>
